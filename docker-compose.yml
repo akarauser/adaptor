@@ -1,0 +1,28 @@
+services:
+  ollama:
+    image: ollama/ollama
+    container_name: ollama_adaptor
+    ports:
+      - "11434:11434"
+    networks:
+      - adaptor_default
+    volumes:
+      - ollama-models:/root/.ollama
+  app:
+    build:
+      context: .
+    ports:
+      - "8501:8501"
+    networks:
+      - adaptor_default
+    volumes:
+      - adaptor-data:/adaptor/adaptor/data/history
+    depends_on:
+      - ollama
+
+networks:
+  adaptor_default:
+
+volumes:
+  ollama-models:
+  adaptor-data:
