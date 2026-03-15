@@ -15,7 +15,7 @@ showSidebarBorder = true
 
 [theme.sidebar]
 backgroundColor = "#555d50"
-secondaryBackgroundColor = "#f2f1ed"
+secondaryBackgroundColor = "#555d50"
 textColor = "#c9bca1"
 
 [browser]
