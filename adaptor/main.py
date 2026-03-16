@@ -8,6 +8,7 @@ from typing import Any
 
 import streamlit as st
 from ollama import ChatResponse, Client
+from PIL import Image
 from scripts.utils import config_args, logger
 
 st.set_page_config(
@@ -21,15 +22,18 @@ st.set_page_config(
 # Functions
 @st.cache_resource
 def conversation(
-    prompt: str, history: list[Any], max_retries: int = 3, retry_delay: int = 1
+    prompt: str,
+    use_image: bool,
+    image_path: str,
+    history: list[Any],
+    max_retries: int = 3,
+    retry_delay: int = 1,
 ) -> Iterator[ChatResponse] | None:
     """Initialize Ollama system with streaming response"""
-    messages = [
-        {
-            "role": "user",
-            "content": prompt,
-        }
-    ]
+    if use_image:
+        messages = [{"role": "user", "content": prompt, "images": [image_path]}]
+    else:
+        messages = [{"role": "user", "content": prompt}]
     for attempt in range(max_retries):
         try:
             stream = Client("http://ollama_adaptor:11434").chat(
@@ -168,6 +172,9 @@ if "chosen_session" not in st.session_state:
 if "initial" not in st.session_state:
     st.session_state["initial"] = True
 
+if "image_uploaded" not in st.session_state:
+    st.session_state["image_uploaded"] = False
+
 # Initial folder creation
 if not os.path.exists("adaptor/data/history"):
     os.makedirs("adaptor/data/history")
@@ -179,7 +186,17 @@ if st.session_state["initial"]:
 
 # Sidebar
 with st.sidebar:
-    with st.container():
+    with st.container(height=240):
+        image_byte = st.file_uploader(
+            "Choose an image for chat",
+            type=["png", "jpg", "jpeg"],
+            help="You can choose an image to interact over chat.",
+        )
+        if image_byte:
+            image = Image.open(image_byte)
+            image.save("adaptor/data/image.jpg")
+            st.session_state["image_uploaded"] = True
+    with st.container(height=380):
         st.session_state["chosen_session"] = st.radio(
             "Chat History",
             [conv["session_id"] for conv in get_recent_conversations()],
@@ -208,6 +225,8 @@ if prompt := st.chat_input("Type here..."):
         response_placeholder = st.empty()
         stream = conversation(
             prompt,
+            use_image=st.session_state["image_uploaded"],
+            image_path="adaptor/data/image.jpg",
             history=get_conversation(st.session_state["chosen_session"]),
         )
         if stream:
