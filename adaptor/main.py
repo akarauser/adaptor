@@ -23,13 +23,17 @@ st.set_page_config(
 @st.cache_resource
 def conversation(
     prompt: str,
+    use_image: bool,
     image_path: str,
     history: list[Any],
     max_retries: int = 3,
     retry_delay: int = 1,
 ) -> Iterator[ChatResponse] | None:
     """Initialize Ollama system with streaming response"""
-    messages = [{"role": "user", "content": prompt, "images": [image_path]}]
+    if use_image:
+        messages = [{"role": "user", "content": prompt, "images": [image_path]}]
+    else:
+        messages = [{"role": "user", "content": prompt}]
     for attempt in range(max_retries):
         try:
             stream = Client("http://ollama_adaptor:11434").chat(
@@ -182,7 +186,7 @@ if st.session_state["initial"]:
 
 # Sidebar
 with st.sidebar:
-    with st.container():
+    with st.container(height=240):
         image_byte = st.file_uploader(
             "Choose an image for chat",
             type=["png", "jpg", "jpeg"],
@@ -192,7 +196,7 @@ with st.sidebar:
             image = Image.open(image_byte)
             image.save("adaptor/data/image.jpg")
             st.session_state["image_uploaded"] = True
-    with st.container():
+    with st.container(height=380):
         st.session_state["chosen_session"] = st.radio(
             "Chat History",
             [conv["session_id"] for conv in get_recent_conversations()],
@@ -221,9 +225,8 @@ if prompt := st.chat_input("Type here..."):
         response_placeholder = st.empty()
         stream = conversation(
             prompt,
-            image_path="adaptor/data/image.jpg"
-            if st.session_state["image_uploaded"]
-            else "",
+            use_image=st.session_state["image_uploaded"],
+            image_path="adaptor/data/image.jpg",
             history=get_conversation(st.session_state["chosen_session"]),
         )
         if stream:
