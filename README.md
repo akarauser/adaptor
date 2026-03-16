@@ -21,9 +21,9 @@ docker compose up
 
 ## Usage
 * Pull Ollama model (Only for first time):
-> docker exec -it ollama_adaptor ollama pull qwen3:4b
+> docker exec -it ollama_adaptor ollama pull qwen3.5:4b
 
-*You can pull another thinking model instead qwen3:4b. If you have pulled another model, make sure to update adaptor/adaptor/data/config.json file from inside the container.*
+*You can pull another thinking model with vision abilities instead qwen3.5:4b. If you have pulled another model, make sure to update adaptor/adaptor/data/config.json file from inside the container.*
 
 * Go to http://localhost:8501/
 
