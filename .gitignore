@@ -11,4 +11,3 @@ wheels/
 
 # Other
 .pytest_cache
-adaptor/data/history

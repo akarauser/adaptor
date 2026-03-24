@@ -7,6 +7,8 @@ Local and private thinking chatbot with history and long term memory. You can ke
 - Local usage: You can use your model without internet connection with your local system
 - Chat history: System saves every conversation locally as sql database file
 - Long term memory: Model will remember and continue conversations from history and within the session
+- Vision: You can interact with your images over the chat.
+- Model selection: You can interactively change the model you use for the chat.
 
 ## Installation
 * Application needs Docker. You can follow the steps from [Get Docker.](https://docs.docker.com/get-started/introduction/get-docker-desktop/)
@@ -41,12 +43,12 @@ adaptor
 ├── adaptor
 │   ├── .streamlit
 │   │   └── config.toml
-│   ├── data
-│   │   └── config.json
 │   ├── main.py
 │   ├── scripts
+│   │   ├── user.py
 │   │   ├── utils.py
 │   │   └── __init__.py
+│   ├── main.py
 │   └── __init__.py
 ├── docker-compose.yml
 ├── Dockerfile
