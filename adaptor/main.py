@@ -6,11 +6,12 @@ from collections.abc import Iterator
 from datetime import datetime
 from typing import Any
 
+import ollama
 import streamlit as st
 from ollama import ChatResponse, Client
 from PIL import Image
 from scripts.user import check_username, init_db_user, signup_user, singin_user
-from scripts.utils import config_args, logger
+from scripts.utils import logger
 
 st.set_page_config(
     page_title="Adaptor",
@@ -18,7 +19,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
 
 # Initial folder creation
 if not os.path.exists("adaptor/data/history"):
@@ -32,6 +32,9 @@ if "messages" not in st.session_state:
 
 if "session" not in st.session_state:
     st.session_state["session"] = datetime.now().strftime("%y-%m-%d_%H-%M-%S")
+
+if "chosen_model" not in st.session_state:
+    st.session_state["chosen_model"] = ""
 
 if "chosen_session" not in st.session_state:
     st.session_state["chosen_session"] = ""
@@ -58,12 +61,14 @@ if "wrong_information" not in st.session_state:
 # Functions
 @st.cache_resource
 def conversation(
+    model: str,
     prompt: str,
     use_image: bool,
-    image_path: str,
     history: list[Any],
+    image_path: str = "",
     max_retries: int = 3,
     retry_delay: int = 1,
+    think: bool = True,
 ) -> Iterator[ChatResponse] | None:
     """Initialize Ollama system with streaming response"""
     if use_image:
@@ -73,7 +78,7 @@ def conversation(
     for attempt in range(max_retries):
         try:
             stream = Client("http://ollama_adaptor:11434").chat(
-                config_args.model, messages=history + messages, stream=True, think=True
+                model, messages=history + messages, stream=True, think=think
             )
             return stream
 
@@ -260,22 +265,48 @@ else:
 
     # Sidebar
     with st.sidebar:
-        with st.container(height=220):
+        try:
+            st.session_state["chosen_model"] = st.selectbox(
+                "Model list",
+                [
+                    model
+                    for model in sorted(
+                        [
+                            Client("http://ollama_adaptor:11434").list()["models"][i][
+                                "model"
+                            ]
+                            for i in range(
+                                len(
+                                    Client("http://ollama_adaptor:11434").list()[
+                                        "models"
+                                    ]
+                                )
+                            )
+                        ]
+                    )
+                    if "embed" not in model
+                ],
+                index=None,
+                placeholder="Choose a model",
+                label_visibility="hidden",
+            )
+
+        except Exception:
+            logger.warning("Failed to retrieve model list.")
+        with st.container(height=200):
             image_byte = st.file_uploader(
                 "Choose an image for chat",
                 type=["png", "jpg", "jpeg"],
-                help="You can choose an image to interact over chat. Image can be 'png', 'jpg', 'jpeg'.",
             )
             if image_byte:
                 image = Image.open(image_byte)
                 image.save("adaptor/data/image.jpg")
                 st.session_state["image_uploaded"] = True
-        with st.container(height=320):
+        with st.container(height=260):
             st.session_state["chosen_session"] = st.radio(
                 "Chat History",
                 [conv["session_id"] for conv in get_recent_conversations()],
                 width="stretch",
-                help="Sorting is based on date and time (year-month-day_hour-minute-second). If you do not receive any answer, make sure to repeat your prompt.",
                 captions=load_captions(),
             )
 
@@ -297,25 +328,51 @@ else:
             with st.status("Thinking...", expanded=False) as status:
                 thinking_placeholder = st.empty()
             response_placeholder = st.empty()
-            stream = conversation(
-                prompt,
-                use_image=st.session_state["image_uploaded"],
-                image_path="adaptor/data/image.jpg",
-                history=get_conversation(st.session_state["chosen_session"]),
-            )
-            if stream:
-                for chunk in stream:
-                    if chunk.message.thinking:
-                        thinking_content += chunk.message.thinking
-                        thinking_placeholder.markdown(thinking_content)
-                    elif chunk.message.content:
-                        response_content += chunk.message.content
-                        response_placeholder.markdown(response_content)
-                st.session_state["messages"].append(
-                    {
-                        "role": "assistant",
-                        "content": response_content,
-                        "thinking": thinking_content,
-                    },
+            try:
+                stream = conversation(
+                    st.session_state["chosen_model"],
+                    prompt,
+                    use_image=st.session_state["image_uploaded"],
+                    image_path="adaptor/data/image.jpg",
+                    history=get_conversation(st.session_state["chosen_session"]),
                 )
+                if stream:
+                    for chunk in stream:
+                        if chunk.message.thinking:
+                            thinking_content += chunk.message.thinking
+                            thinking_placeholder.markdown(thinking_content)
+                        elif chunk.message.content:
+                            response_content += chunk.message.content
+                            response_placeholder.markdown(response_content)
+                    st.session_state["messages"].append(
+                        {
+                            "role": "assistant",
+                            "content": response_content,
+                            "thinking": thinking_content,
+                        },
+                    )
+            except ollama.ResponseError:
+                stream = conversation(
+                    st.session_state["chosen_model"],
+                    prompt,
+                    use_image=False,
+                    history=get_conversation(st.session_state["chosen_session"]),
+                    think=False,
+                )
+                if stream:
+                    thinking_content = (
+                        "Choose a thinking model to be able use thinking section..."
+                    )
+                    thinking_placeholder.markdown(thinking_content)
+                    for chunk in stream:
+                        if chunk.message.content:
+                            response_content += chunk.message.content
+                            response_placeholder.markdown(response_content)
+                    st.session_state["messages"].append(
+                        {
+                            "role": "assistant",
+                            "content": response_content,
+                            "thinking": thinking_content,
+                        },
+                    )
         add_message(st.session_state["chosen_session"], st.session_state["messages"])
